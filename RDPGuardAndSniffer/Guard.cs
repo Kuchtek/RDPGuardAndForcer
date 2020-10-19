@@ -9,7 +9,7 @@ using System.Diagnostics.Eventing.Reader;
 using System.Net;
 using NetFwTypeLib;
 
-namespace RDPGuardAndSniffer
+namespace RDPGuard
 {
     class Guard
     {
