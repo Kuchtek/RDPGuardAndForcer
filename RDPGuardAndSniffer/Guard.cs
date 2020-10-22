@@ -1,13 +1,9 @@
-﻿using System;
+﻿using NetFwTypeLib;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Net.NetworkInformation;
 using System.Diagnostics.Eventing.Reader;
-using System.Net;
-using NetFwTypeLib;
+using System.Linq;
+using System.Net.NetworkInformation;
 
 namespace RDPGuard
 {
@@ -16,7 +12,9 @@ namespace RDPGuard
         public int RdpCounter { set; get; }
         public int Port { set; get; }
         public int AllowedFailedLogons { set; get; }
-        public Dictionary<string,int> FailedLogons { set; get; }
+        public Dictionary<string, int> FailedLogons { set; get; }
+
+        public int SecondsDecrease { set; get; }
 
         private Dictionary<string, string> subStatusDict;
 
@@ -42,19 +40,20 @@ namespace RDPGuard
             blackListIP = value;
         }
 
-        public Guard()
+        public Guard(int port = 3389, int allowedfailedlogons = 5, int secondsdecrease = 5)
         {
             this.RdpCounter = 0;
-            this.Port = 3389;
-            this.AllowedFailedLogons = 5;
+            this.Port = port;
+            this.AllowedFailedLogons = allowedfailedlogons;
             SetSubStatusDict(new Dictionary<string, string>{
                 { "0xC0000064", "Użytkownik nie istnieje!" },
                 { "0xC000006A", "Użytkownik istnieje, nieprawidłowe hasło" }
             });
             this.SetBlackListIP(new List<string>());
             this.FailedLogons = new Dictionary<string, int>();
+            this.SecondsDecrease = secondsdecrease;
         }
-        
+
 
         public void Start()
         {
@@ -67,13 +66,17 @@ namespace RDPGuard
                     Console.WriteLine("Czekam na eventy...");
                     Console.WriteLine(String.Format("Ilość prób: {0}", this.RdpCounter));
                     System.Threading.Thread.Sleep(1000);
-                    
+
                     counter++;
-                    if(counter % 5 == 0)
+                    if (counter % SecondsDecrease == 0)
                     {
                         ConsumeCounter();
                     }
                 }
+            }
+            else
+            {
+                Console.WriteLine(String.Format("System nie prowadzi nasłuchu na porcie {0}.\nKończymy na dziś!", this.Port));
             }
         }
         private bool CheckPortAvailability()
@@ -146,7 +149,7 @@ namespace RDPGuard
                 Console.WriteLine(String.Format("Numer eventu: {0}", logEventProperties[3]));
                 Console.WriteLine(String.Format("Nazwa providera: {0}", logEventProperties[4]));
                 Console.WriteLine(String.Format("Próba połczenia z IP: {0}", logEventProperties[5]));
-                
+
                 if (FailedLogons.ContainsKey(logEventProperties[5].ToString()))
                 {
                     var ip = logEventProperties[5].ToString();
@@ -216,6 +219,58 @@ namespace RDPGuard
             if (this.RdpCounter > 0)
             {
                 this.RdpCounter--;
+            }
+        }
+
+        public void ParseParameters(string[] args)
+        {
+            List<KeyValuePair<string, string>> parameters = new List<KeyValuePair<string, string>>();
+            String tmpParameter = "";
+            foreach (String tmpArg in args)
+            {
+                tmpParameter = tmpArg;
+                while (tmpParameter.First().Equals('-') || tmpParameter.First().Equals('/'))
+                {
+                    tmpParameter = tmpParameter.Remove(0, 1);
+                }
+                String[] parts = tmpParameter.Trim().Split(new char[] { '=' }, 2);
+                if (parts.Count() > 1)
+                {
+                    parameters.Add(new KeyValuePair<string, string>(parts[0].ToLower(), parts[1]));
+                }
+                else
+                {
+                    parameters.Add(new KeyValuePair<string, string>(tmpParameter, ""));
+                }
+            }
+            foreach (KeyValuePair<string, string> key in parameters)
+            {
+                try
+                {
+                    switch (key.Key)
+                    {
+                        case "port":
+                            this.Port = Int32.Parse(key.Value);
+                            break;
+                        case "allowedfailedlogons":
+                            this.AllowedFailedLogons = Int32.Parse(key.Value);
+                            break;
+                        case "secondsdecrease":
+                            this.SecondsDecrease = Int32.Parse(key.Value);
+                            break;
+                        default:
+                            Console.WriteLine("RDPGuard v1.0\n\nDostępne parametry:\n\t port - który port ma być nasłuchiwany. Domyślnie 3389" +
+                                "\n\t allowedfailedlogons - po ilu próbach nastąpi dodanie IP na blacklistę. Domyślnie 5." +
+                                "\n\t secondsdecrease - ile sekund musi nastąpić, aby licznik nieudanych prób zaczął spadać (w s). Domyślnie: 5"+
+                                "\n\t help - wyświetla tę wiadomość");
+                            Environment.Exit(0);
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                }
             }
         }
     }
