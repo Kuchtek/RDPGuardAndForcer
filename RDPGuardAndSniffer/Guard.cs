@@ -17,19 +17,42 @@ namespace RDPGuard
         public int Port { set; get; }
         public int AllowedFailedLogons { set; get; }
         public Dictionary<string,int> FailedLogons { set; get; }
-        private Dictionary<String,String> SubStatusDict { set; get; }
 
-        private List<string> BlackListIP;
+        private Dictionary<string, string> subStatusDict;
+
+        private Dictionary<string, string> GetSubStatusDict()
+        {
+            return subStatusDict;
+        }
+
+        private void SetSubStatusDict(Dictionary<string, string> value)
+        {
+            subStatusDict = value;
+        }
+
+        private List<string> blackListIP;
+
+        private List<string> GetBlackListIP()
+        {
+            return blackListIP;
+        }
+
+        private void SetBlackListIP(List<string> value)
+        {
+            blackListIP = value;
+        }
 
         public Guard()
         {
             this.RdpCounter = 0;
             this.Port = 3389;
             this.AllowedFailedLogons = 5;
-            SubStatusDict = new Dictionary<string, string>{
+            SetSubStatusDict(new Dictionary<string, string>{
                 { "0xC0000064", "Użytkownik nie istnieje!" },
                 { "0xC000006A", "Użytkownik istnieje, nieprawidłowe hasło" }
-            };
+            });
+            this.SetBlackListIP(new List<string>());
+            this.FailedLogons = new Dictionary<string, int>();
         }
         
 
@@ -89,9 +112,9 @@ namespace RDPGuard
                 //dla logu złych logowań
                 logType = "Security";
                 query = "*[System/EventID=4625]";
-                elQuery = new EventLogQuery(logType, PathType.LogName, query);
-                elReader = new EventLogReader(elQuery);
-                EventLogWatcher watcher2 = new EventLogWatcher(elQuery);
+                var elQuery2 = new EventLogQuery(logType, PathType.LogName, query);
+                var elReader2 = new EventLogReader(elQuery2);
+                EventLogWatcher watcher2 = new EventLogWatcher(elQuery2);
                 watcher2.EventRecordWritten += new EventHandler<EventRecordWrittenEventArgs>(EventLogEventReadFailedLogons);
                 watcher2.Enabled = true;
             }
@@ -111,7 +134,7 @@ namespace RDPGuard
                 xPathRef[2] = "Event/UserData/EventXML/listenerName";
                 xPathRef[3] = "Event/System/EventID";
                 xPathRef[4] = "Event/System/Provider/@Name";
-                xPathRef[5] = "EventData/Data/[Name=IpAddress]";
+                xPathRef[5] = "Event/EventData/Data[@Name='IpAddress']";
 
 
                 IEnumerable<String> xPathEnum = xPathRef;
@@ -123,6 +146,7 @@ namespace RDPGuard
                 Console.WriteLine(String.Format("Numer eventu: {0}", logEventProperties[3]));
                 Console.WriteLine(String.Format("Nazwa providera: {0}", logEventProperties[4]));
                 Console.WriteLine(String.Format("Próba połczenia z IP: {0}", logEventProperties[5]));
+                
                 if (FailedLogons.ContainsKey(logEventProperties[5].ToString()))
                 {
                     var ip = logEventProperties[5].ToString();
@@ -130,8 +154,8 @@ namespace RDPGuard
                     if (FailedLogons[ip] > AllowedFailedLogons)
                     {
                         //idziesz na blacklistę
-                        BlackListIP.Add(ip);
-                        Console.WriteLine(String.Format("Wykryto próbę ataku na RDP na porcie {0}, przeprowadzonych prób: {1}\n Dodaję adres {2} na blacklistę na firewallu.", this.Port, FailedLogons[xPathRef[5]], xPathRef[5]));
+                        GetBlackListIP().Add(ip);
+                        Console.WriteLine(String.Format("Wykryto próbę ataku na RDP na porcie {0}, przeprowadzonych prób: {1}\n Dodaję adres {2} na blacklistę na firewallu.", this.Port, FailedLogons[logEventProperties[5].ToString()], logEventProperties[5].ToString()));
                         //tworenie nowej reguły
                         INetFwRule2 inboundRule = (INetFwRule2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwRule"));
                         inboundRule.Enabled = true;
@@ -151,7 +175,7 @@ namespace RDPGuard
                 }
                 else
                 {
-                    FailedLogons.Add(xPathRef[5], 1);
+                    FailedLogons.Add(logEventProperties[5].ToString(), 1);
                 }
 
             }
