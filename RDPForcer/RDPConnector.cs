@@ -32,10 +32,17 @@ namespace RDPForcer
             ProcessStartInfo processStartInfo = new ProcessStartInfo("cmd.exe", command);
             processStartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processStartInfo.CreateNoWindow = true;
+            processStartInfo.RedirectStandardOutput = true;
+            processStartInfo.UseShellExecute = false;
 
             Process process = new Process();
             process.StartInfo = processStartInfo;
             process.Start();
+            var outputResultPromise = process.StandardOutput.ReadToEndAsync();
+            outputResultPromise.ContinueWith(action =>
+           {
+               Console.WriteLine(action.Result);
+           });
             Console.WriteLine("Poczekam chwilę na nawiązanie połączenia");
             Thread.Sleep(5000);
         }
